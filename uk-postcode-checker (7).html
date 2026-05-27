@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UK Postcode Checker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f3; min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 2.5rem 1rem; }
+  .wrap { width: 100%; max-width: 560px; }
+  h1 { font-size: 22px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px; }
+  .sub { font-size: 14px; color: #888; margin-bottom: 1.5rem; }
+  .input-row { display: flex; gap: 10px; margin-bottom: 1.5rem; }
+  input[type=text] { flex: 1; height: 42px; border: 1px solid #ddd; border-radius: 8px; padding: 0 14px; font-size: 16px; font-family: inherit; text-transform: uppercase; letter-spacing: 0.05em; outline: none; background: #fff; }
+  input[type=text]:focus { border-color: #555; }
+  button { height: 42px; padding: 0 20px; border-radius: 8px; background: #1a1a1a; color: #fff; border: none; font-size: 15px; font-family: inherit; cursor: pointer; white-space: nowrap; }
+  button:hover { background: #333; }
+  button:active { transform: scale(0.98); }
+  .card { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 10px; }
+  .lbl { font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .val { font-size: 17px; font-weight: 600; color: #1a1a1a; }
+  .sub2 { font-size: 13px; color: #888; margin-top: 2px; }
+  #r-region, #r-country { font-weight: 700; color: #444; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .badge { display: inline-block; font-size: 12px; padding: 3px 14px; border-radius: 20px; font-weight: 600; background: #e8f0fe; color: #1a56db; margin-bottom: 14px; }
+  .error { background: #fff2f2; border: 1px solid #fcc; border-radius: 8px; padding: 0.75rem 1rem; color: #c00; font-size: 14px; margin-bottom: 1rem; }
+  .loading { color: #888; font-size: 14px; padding: 0.5rem 0 1rem; }
+  #result { display: none; }
+  .map-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #1a56db; text-decoration: none; margin-top: 10px; }
+  .map-link:hover { text-decoration: underline; }
+  @media (max-width: 420px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🇬🇧 UK Postcode Checker</h1>
+  <p class="sub">Find the council and area info for any UK postcode.</p>
+  <div class="input-row">
+    <input type="text" id="pc" placeholder="e.g. PE1 1BX" maxlength="8" />
+    <button onclick="lookup()">🔍 Check</button>
+  </div>
+  <div id="loading" style="display:none" class="loading">Looking up…</div>
+  <div id="error" style="display:none"></div>
+  <div id="result">
+    <div class="badge" id="r-pc"></div>
+    <div class="card">
+      <div class="lbl">📍 Street / Address area</div>
+      <div id="r-street" style="font-size:17px; font-weight:700; color:#1a1a1a; margin-bottom:4px;"></div>
+      <div id="r-address" style="font-size:16px; font-weight:700; color:#1a1a1a; line-height:1.6;"></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="lbl">🏛 Local council</div>
+        <div class="val" id="r-council"></div>
+        <div class="sub2" id="r-county"></div>
+      </div>
+      <div class="card">
+        <div class="lbl">🏘 Parish / ward</div>
+        <div class="val" id="r-parish"></div>
+        <div class="sub2" id="r-ward"></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="lbl">📡 Coordinates</div>
+        <div class="val" id="r-coords"></div>
+      </div>
+      <div class="card">
+        <div class="lbl">🗳 Constituency</div>
+        <div class="val" id="r-seat"></div>
+      </div>
+    </div>
+    <a class="map-link" id="r-map" target="_blank" rel="noopener">🗺 View on Google Maps</a>
+    <br>
+    <a class="map-link" id="r-royal-mail" target="_blank" rel="noopener">📬 Find addresses on Royal Mail</a>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+
+function show(r, street) {
+  $('r-pc').textContent = r.postcode;
+  $('r-street').textContent = street || '';
+  const addrParts = [
+    r.admin_ward      || '',
+    r.admin_district  || '',
+    r.admin_county    || '',
+    r.region          || '',
+    r.country         || '',
+    r.postcode        || ''
+  ].filter(Boolean);
+  $('r-address').innerHTML = addrParts.map(p => '<div>' + p + '</div>').join('');
+  $('r-council').textContent = r.admin_district || '—';
+  $('r-county').textContent  = r.admin_county || '';
+  $('r-parish').textContent  = r.parish || '—';
+  $('r-ward').textContent    = r.admin_ward ? 'Ward: ' + r.admin_ward : '';
+  $('r-coords').textContent  = r.latitude ? r.latitude.toFixed(4) + ', ' + r.longitude.toFixed(4) : '—';
+  $('r-seat').textContent    = r.parliamentary_constituency || '—';
+  if (r.latitude) {
+    $('r-map').href = 'https://www.google.com/maps/search/?api=1&query=' + r.latitude + ',' + r.longitude;
+    $('r-map').style.display = 'inline-flex';
+  } else {
+    $('r-map').style.display = 'none';
+  }
+  $('r-royal-mail').href = 'https://www.royalmail.com/find-a-postcode?postcode=' + encodeURIComponent(r.postcode);
+  $('r-royal-mail').style.display = 'inline-flex';
+  $('loading').style.display = 'none';
+  $('result').style.display  = 'block';
+}
+
+function fail(msg) {
+  $('loading').style.display = 'none';
+  $('error').style.display   = 'block';
+  $('error').innerHTML       = '<div class="error">⚠️ ' + msg + '</div>';
+}
+
+const OS_KEY = '3GSKOYpb2lZwAZG6AlMdmAhi2bsNfnOZ';
+
+async function lookupStreet(postcode) {
+  try {
+    const url = 'https://api.os.uk/search/names/v1/find?query=' + encodeURIComponent(postcode) + '&fq=TYPE:postcode&key=' + OS_KEY;
+    const res  = await fetch(url);
+    const data = await res.json();
+    const results = data.results || [];
+    // Find a road-type result near the postcode, or fall back to first result
+    const road = results.find(r => r.GAZETTEER_ENTRY && r.GAZETTEER_ENTRY.TYPE === 'transportNetwork')
+              || results.find(r => r.GAZETTEER_ENTRY && r.GAZETTEER_ENTRY.NAME1)
+              || null;
+    if (road && road.GAZETTEER_ENTRY) {
+      const e = road.GAZETTEER_ENTRY;
+      return [e.NAME1, e.DISTRICT_BOROUGH, e.POPULATED_PLACE].filter(Boolean).join(', ');
+    }
+    // Try a broader search using just the outward code to get the road name
+    const outward = postcode.replace(/\s/g,'').slice(0,-3);
+    const url2 = 'https://api.os.uk/search/names/v1/find?query=' + encodeURIComponent(postcode) + '&key=' + OS_KEY;
+    const res2  = await fetch(url2);
+    const data2 = await res2.json();
+    const results2 = (data2.results || []);
+    const entry = results2.find(r => r.GAZETTEER_ENTRY && r.GAZETTEER_ENTRY.TYPE === 'populatedPlace')
+               || results2[0];
+    if (entry && entry.GAZETTEER_ENTRY) {
+      const e = entry.GAZETTEER_ENTRY;
+      return [e.NAME1, e.DISTRICT_BOROUGH, e.POPULATED_PLACE].filter(Boolean).join(', ');
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function lookup() {
+  const raw = $('pc').value.trim().toUpperCase().replace(/\s+/g, '');
+  if (!raw) return;
+  $('error').style.display   = 'none';
+  $('result').style.display  = 'none';
+  $('loading').style.display = 'block';
+  try {
+    const [res, street] = await Promise.all([
+      fetch('https://api.postcodes.io/postcodes/' + encodeURIComponent(raw)),
+      lookupStreet(raw)
+    ]);
+    const data = await res.json();
+    if (data.status === 200 && data.result) { show(data.result, street); return; }
+    fail(data.error || 'Postcode not found.');
+  } catch(e) {
+    fail('Could not reach the postcode service. Check your internet connection.');
+  }
+}
+
+$('pc').addEventListener('keydown', e => { if (e.key === 'Enter') lookup(); });
+$('pc').addEventListener('input',   e => { e.target.value = e.target.value.toUpperCase(); });
+</script>
+</body>
+</html>
